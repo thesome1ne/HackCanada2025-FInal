@@ -1,2 +1,173 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+import tkinter as tk
+import random
+import time
+import threading
+import tkinter.messagebox
+import google.generativeai as genai
+
+
+def blink_reminder(root, blink_label, flash_interval_var, exit_event):
+    """Flashes a gentle blink reminder on the screen at a set interval."""
+    gentle_colors = ["#FFB6C1", "#FFFACD", "#ADD8E6", "#FFE4E1", "#F0FFFF"]
+    while not exit_event.is_set():
+        bright_color = random.choice(gentle_colors)
+        root.configure(bg=bright_color)
+        blink_label.config(text="Blink", fg="black", bg=bright_color)
+        blink_label.update()
+        time.sleep(0.5)
+        root.configure(bg="black")
+        blink_label.config(text="")
+        blink_label.update()
+        time.sleep(flash_interval_var.get())
+
+
+def start_blink(root, blink_label, flash_interval_var, exit_event, start_button, stop_button):
+    """Starts the blinking reminder with a new thread."""
+    exit_event.clear()
+    blink_thread = threading.Thread(target=blink_reminder, args=(root, blink_label, flash_interval_var, exit_event))
+    blink_thread.daemon = True
+    blink_thread.start()
+    start_button.config(state="disabled")
+    stop_button.config(state="normal")
+
+
+def stop_blink(exit_event, start_button, stop_button):
+    """Stops the blinking reminder."""
+    exit_event.set()
+    start_button.config(state="normal")
+    stop_button.config(state="disabled")
+
+
+def adjust_speed(flash_interval_var, speed_label, increment=True):
+    """Adjusts the blink speed."""
+    new_speed = flash_interval_var.get() + (0.1 if increment else -0.1)
+    flash_interval_var.set(max(0.1, new_speed))
+    speed_label.config(text=f"Speed: {flash_interval_var.get():.1f}s")
+
+
+def show_warning():
+    """Displays a warning message for photosensitivity."""
+    tkinter.messagebox.showwarning("Photosensitivity Warning",
+                                    "This program flashes bright colors. If you are sensitive to flashing lights or have a history of seizures, please do not use this program.")
+
+
+def get_financial_advice(topic, prompt):
+    """Generates financial advice using Gemini API."""
+    try:
+        genai.configure(api_key="AIzaSyCE3EEl2HCyELBijYdEC6If5UIBiohgUsY")  # Replace with your actual API key
+        model = genai.GenerativeModel('gemini-pro')  # Specify the model
+        full_prompt = f"Provide financial advice on {topic}. {prompt}"
+        response = model.generate_content(full_prompt)
+        return response.text
+    except Exception as e:
+        return f"Error generating advice: {e}"
+
+
+def show_financial_advice_ui(root):
+    """Displays the financial advice UI."""
+    def show_advice():
+        topic_choice = topic_var.get()
+        prompt = prompt_entry.get()
+        if prompt:
+            advice = get_financial_advice(topic_choice, prompt)
+            advice_label.config(text=advice)
+        else:
+            advice_label.config(text="Please enter a prompt.")
+
+    # Clear existing content
+    clear_content(root)
+
+    # Financial advice UI
+    topic_var = tk.StringVar(value="budgeting")
+    topic_label = tk.Label(root, text="Choose a financial topic:", bg="black", fg="white")
+    topic_label.pack()
+
+    topic_menu = tk.OptionMenu(root, topic_var, "budgeting", "investing", "retirement")
+    topic_menu.pack()
+
+    prompt_label = tk.Label(root, text="Ask for financial advice:", bg="black", fg="white")
+    prompt_label.pack()
+
+    prompt_entry = tk.Entry(root)
+    prompt_entry.pack()
+
+    get_advice_button = tk.Button(root, text="Get Advice", command=show_advice)
+    get_advice_button.pack()
+
+    advice_label = tk.Label(root, text="", bg="black", fg="white", font=("Helvetica", 12))
+    advice_label.pack()
+
+    # Focus on the input field for the user to start typing
+    prompt_entry.focus_set()
+
+    # Home button
+    home_button = tk.Button(root, text="Home", command=lambda: show_home_ui(root))
+    home_button.pack(pady=10)
+
+
+def show_flash_reminder_ui(root):
+    """Displays the flashing reminder UI."""
+    # Clear existing content and show the blinking reminder
+    clear_content(root)
+
+    blink_label = tk.Label(root, text="", font=("Helvetica", 48), bg="black", fg="white")
+    blink_label.pack(pady=10)
+
+    flash_interval_var = tk.DoubleVar(value=1.0)
+    exit_event = threading.Event()
+
+    start_button = tk.Button(root, text="Start", command=lambda: start_blink(root, blink_label, flash_interval_var, exit_event, start_button, stop_button))
+    start_button.pack(side=tk.LEFT, padx=5)
+
+    stop_button = tk.Button(root, text="Stop", command=lambda: stop_blink(exit_event, start_button, stop_button), state="disabled")
+    stop_button.pack(side=tk.LEFT, padx=5)
+
+    increase_button = tk.Button(root, text="+", command=lambda: adjust_speed(flash_interval_var, speed_label, increment=True))
+    increase_button.pack(side=tk.LEFT, padx=5)
+
+    decrease_button = tk.Button(root, text="-", command=lambda: adjust_speed(flash_interval_var, speed_label, increment=False))
+    decrease_button.pack(side=tk.LEFT, padx=5)
+
+    speed_label = tk.Label(root, text=f"Speed: {flash_interval_var.get():.1f}s", bg="black", fg="white")
+    speed_label.pack()
+
+    # Home button
+    home_button = tk.Button(root, text="Home", command=lambda: show_home_ui(root))
+    home_button.pack(pady=10)
+
+
+def show_home_ui(root):
+    """Displays the home UI with options for Blink Reminder and Financial Advice."""
+    # Clear the window
+    clear_content(root)
+
+    reminder_button = tk.Button(root, text="Blink Reminder", command=lambda: show_flash_reminder_ui(root))
+    reminder_button.pack(pady=10)
+
+    advice_button = tk.Button(root, text="Financial Advice", command=lambda: show_financial_advice_ui(root))
+    advice_button.pack(pady=10)
+
+    show_warning()
+
+
+def clear_content(root):
+    """Clears all widgets in the root window."""
+    for widget in root.winfo_children():
+        widget.pack_forget()
+
+
+def start():
+    global root
+    root = tk.Tk()
+    root.geometry("500x400")
+    root.attributes("-topmost", True)
+    root.configure(bg="black")
+
+    # Show the home UI initially
+    show_home_ui(root)
+
+    root.mainloop()
+
+
+# Starting the application
+start()
